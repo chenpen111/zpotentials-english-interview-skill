@@ -1,0 +1,6 @@
+interface:
+  display_name: "Z Potentials英文访谈文章编译"
+  short_description: "英文视频与播客访谈核对、逐句翻译和深度排版，交付三份Word并逐项验收"
+  default_prompt: "使用$zpotentials-depth-interview编译这期英文访谈，按本期署名交付三份Word、配图及审核记录；先检查素材与外部审查授权。"
+policy:
+  allow_implicit_invocation: true

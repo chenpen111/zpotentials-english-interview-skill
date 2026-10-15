@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "release_version": "1.0.0",
+  "compiler": null,
+  "title_prefix": "深度｜",
+  "summary_max_characters": 80,
+  "body_images_minimum": 4,
+  "cover_images_minimum": 1,
+  "highlights_default": [2, 3],
+  "highlights_maximum": 5,
+  "body_emphasis_range": [10, 20],
+  "footer_file": "footer.txt",
+  "review_prompt": "帮我审查以下内容是否适合在中国微信公众号发布，是否有政治敏感内容。如果没有就在末尾额外告诉我没有，如果有的话需要在文档中批注",
+  "no_risk_comment": "经审核无敏感内容，适合发布",
+  "output_formats": ["英文原稿.docx", "中英文对照稿.docx", "中文成品稿.docx"],
+  "experience_stages": ["transcript", "translation", "packaging", "images", "review", "delivery"],
+  "typography_fallback": {
+    "note": "沿用最近深度稿的保守默认值，非原SOP硬性字号；有新模板或用户指定时优先采用。",
+    "english_font": "Arial",
+    "chinese_font": "Microsoft YaHei",
+    "body_pt": 11,
+    "heading_pt": 13,
+    "title_pt": 18,
+    "caption_pt": 9,
+    "line_spacing": 1.45,
+    "heading_color": "000000"
+  }
+}
