@@ -10,7 +10,9 @@
 
 双语：逐句英文紧接中文，按原发言顺序；保留用于核对的完整英文，而非仅用缩短后的中文倒译。建议给英文/中文句子设置Word段落样式`EnglishSentence`和`ChineseTranslation`，只是隐藏语义样式，不在正文加“英文/中文”标签。源稿无信息口语的省略/合并要可回查；句子不宜拆到无法理解。
 
-中文：深度SOP完整结构、正文人物名字加冒号、没有时间戳、至少四图加封面、图下具体来源、固定署名与声明。开头和结尾不缺失，批注不显示为观众正文。
+中文：深度SOP完整结构、正文人物名字加冒号、没有时间戳、至少四图加封面、图下仅图片描述、固定署名与声明。图注字体字号颜色同正文、不加粗，不显示图片来源及链接。开头和结尾不缺失，批注不显示为观众正文。
+
+图片出处另存项目`qa/image-sources.json`，在验收证据中用`image_sources_file`指向实际文件。格式为`{"images": [{"shape_id": "实际图片docPr的id", "source_url": "具体原始出处链接"}]}`；覆盖封面和每张正文图。可补充本地图片路径及描述，便于回查；辅助资料不作为第四份交付稿。
 
 ## 豆包审查
 
@@ -35,6 +37,7 @@
   "timestamps_available": true,
   "alignment_verified": true,
   "content_review_verified": true,
+  "image_sources_file": "qa/image-sources.json的实际绝对路径",
   "experience_checks": {
     "transcript": {"status": "passed", "checked_ids": ["实际读取的条目ID"], "record_file": "qa/experience-checks.md的绝对路径"},
     "translation": {"status": "passed", "checked_ids": ["实际读取的条目ID"], "record_file": "实际自检记录绝对路径"},

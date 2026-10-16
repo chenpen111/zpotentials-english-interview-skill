@@ -20,14 +20,19 @@ spec.loader.exec_module(module)
 def run_tests():
     caption_fixture = Document()
     caption_fixture.add_paragraph("IMAGE PLACEHOLDER")
-    caption_fixture.add_paragraph("图片说明。", style="Caption")
-    caption_fixture.add_paragraph("图片来源：TEST FIXTURE", style="Caption")
-    assert module.has_source_caption(caption_fixture.paragraphs, 0)
-    caption_fixture.paragraphs[1].style = "Normal"
-    assert not module.has_source_caption(caption_fixture.paragraphs, 0)
+    caption_fixture.add_paragraph("图片说明。")
+    assert module.has_descriptive_caption(caption_fixture.paragraphs, 0)
+    caption_fixture.paragraphs[1].runs[0].bold = True
+    assert not module.has_descriptive_caption(caption_fixture.paragraphs, 0)
+    caption_fixture.paragraphs[1].runs[0].bold = False
     caption_fixture.paragraphs[1].text = "图片来源：TEST FIXTURE"
-    assert module.has_source_caption(caption_fixture.paragraphs, 0)
-    assert not module.has_source_caption(caption_fixture.paragraphs, 2)
+    assert not module.has_descriptive_caption(caption_fixture.paragraphs, 0)
+    caption_fixture.paragraphs[1].text = "图片说明 https://example.com"
+    assert not module.has_descriptive_caption(caption_fixture.paragraphs, 0)
+    caption_fixture.paragraphs[1].text = "另一主题"
+    caption_fixture.paragraphs[1].style = "Heading 2"
+    assert not module.has_descriptive_caption(caption_fixture.paragraphs, 0)
+    assert not module.has_descriptive_caption(caption_fixture.paragraphs, 1)
     rules = module.load_rules(compiler="Test Compiler", use_local=False)
     footer = module.render_footer(rules)
     assert "编译：Test Compiler" in footer and "{compiler}" not in footer
@@ -67,10 +72,16 @@ def run_tests():
         final.add_paragraph("“这是测试，不是生产稿件。”")
         final.add_paragraph("Z Highlights", style="Heading 2")
         final.add_paragraph("这是模拟内容。")
+        image_sources = []
         for i in range(5):
             shape = final.add_paragraph().add_run().add_picture(str(image), width=Inches(1))
             shape._inline.docPr.set("descr", "ZP_COVER" if i == 0 else "ZP_BODY")
-            final.add_paragraph("图片来源：TEST FIXTURE https://example.com")
+            final.add_paragraph("测试图片：用于演示排版的灰色矩形。")
+            image_sources.append({"shape_id": shape._inline.docPr.get("id"),
+                                  "source_url": "https://example.com/test-fixture"})
+        source_file = root / "image-sources.json"
+        source_file.write_text(json.dumps({"images": image_sources}), encoding="utf-8")
+        final.add_paragraph("原始视频：https://example.com/test-interview")
         for part in footer.strip().split("\n\n"):
             final.add_paragraph(part)
         text_hash = module.hashlib.sha256(module.visible_text(final).encode("utf-8")).hexdigest()
@@ -82,6 +93,7 @@ def run_tests():
         self_checks.write_text("TEST FIXTURE ONLY: synthetic stage self-check records.", encoding="utf-8")
         evidence = {
             "alignment_verified": True, "content_review_verified": True,
+            "image_sources_file": str(source_file),
             "experience_checks": {stage: {
                 "status": "passed", "record_file": str(self_checks),
                 "checked_ids": module.re.findall(r"^### ([A-Z]+\d+)\b", (
@@ -99,6 +111,23 @@ def run_tests():
         }
         result = module.audit(paths, evidence, rules)
         assert result["passed"], result
+
+        missing_sources = dict(evidence)
+        missing_sources.pop("image_sources_file")
+        assert module.image_source_errors(final, missing_sources)
+        for invalid in [[], [image_sources[0], image_sources[0]],
+                        [{"shape_id": "1", "source_url": "not-a-url"}]]:
+            source_file.write_text(json.dumps({"images": invalid}), encoding="utf-8")
+            assert module.image_source_errors(final, evidence)
+        source_file.write_text(json.dumps({"images": image_sources}), encoding="utf-8")
+        assert not module.image_source_errors(final, evidence)
+
+        final.add_paragraph("图片来源：https://example.com/old-caption")
+        final.save(paths["final"])
+        assert any("Visible image source" in msg for msg in module.audit(paths, evidence, rules)["errors"])
+        old_caption = final.paragraphs[-1]._p
+        old_caption.getparent().remove(old_caption)
+        final.save(paths["final"])
 
         unchecked = json.loads(json.dumps(evidence))
         unchecked["experience_checks"]["translation"]["status"] = "needs_fix"
@@ -139,7 +168,7 @@ def run_tests():
         aliases = dict(paths)
         aliases["bilingual"] = paths["english"]
         assert any("distinct" in msg for msg in module.audit(aliases, evidence, rules)["errors"])
-        print("PASS: valid structure; stage self-check missing/needs_fix; pending review; expired comment; stale text; stale render; timestamps; missing footer; missing image; broken pairs; distinct files.")
+        print("PASS: descriptive captions; separate per-image sources; missing/duplicate/invalid sources; visible source rejection; valid structure; stage checks; review state; stale text/render; timestamps; missing footer/image; broken pairs; distinct files.")
         print("Synthetic tests only. No real Doubao access, rendering or article revision performed.")
 
 

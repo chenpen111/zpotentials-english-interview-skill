@@ -6,8 +6,8 @@
   "summary_max_characters": 80,
   "body_images_minimum": 4,
   "cover_images_minimum": 1,
-  "highlights_default": [2, 3],
-  "highlights_maximum": 5,
+  "highlights_default": [3, 4],
+  "highlights_maximum": 4,
   "body_emphasis_range": [10, 20],
   "footer_file": "footer.txt",
   "review_prompt": "帮我审查以下内容是否适合在中国微信公众号发布，是否有政治敏感内容。如果没有就在末尾额外告诉我没有，如果有的话需要在文档中批注",
@@ -21,7 +21,7 @@
     "body_pt": 11,
     "heading_pt": 13,
     "title_pt": 18,
-    "caption_pt": 9,
+    "caption_pt": 11,
     "line_spacing": 1.45,
     "heading_color": "000000"
   }

@@ -63,16 +63,39 @@ def image_roles(doc):
     return counts
 
 
-def has_source_caption(paragraphs, image_index):
-    following = [p for p in paragraphs[image_index + 1:] if p.text.strip()][:2]
-    if not following:
-        return False
-    if following[0].text.strip().startswith("图片来源："):
-        return True
-    # A descriptive Caption followed by a separate source Caption is also valid.
-    return (len(following) == 2
-            and all(p.style.name == "Caption" for p in following)
-            and following[1].text.strip().startswith("图片来源："))
+def has_descriptive_caption(paragraphs, image_index):
+    for paragraph in paragraphs[image_index + 1:]:
+        if paragraph._p.xpath(".//w:drawing"):
+            return False
+        text = paragraph.text.strip()
+        if text:
+            return (not text.startswith(("图片来源", "图源"))
+                    and not re.search(r"https?://", text)
+                    and not paragraph.style.name.startswith("Heading")
+                    and not any(run.bold for run in paragraph.runs))
+    return False
+
+
+def image_source_errors(doc, evidence):
+    path = evidence.get("image_sources_file")
+    if not isinstance(path, str) or not path.strip():
+        return ["Image source record file missing; keep origins outside audience captions."]
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+        records = data["images"]
+        if not isinstance(records, list):
+            raise ValueError("images must be a list")
+        sources = {}
+        for record in records:
+            shape_id, url = str(record["shape_id"]), record["source_url"]
+            if shape_id in sources or not isinstance(url, str) or not re.match(r"https?://[^/\s]+", url):
+                raise ValueError("image IDs must be unique and origins must be HTTP(S) URLs")
+            sources[shape_id] = url
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        return [f"Cannot validate image source record: {exc}"]
+    return [f"Image {shape._inline.docPr.get('id')} is missing an original source record."
+            for shape in doc.inline_shapes
+            if shape._inline.docPr.get("id") not in sources]
 
 
 def audit(paths, evidence, rules):
@@ -154,13 +177,13 @@ def audit(paths, evidence, rules):
         errors.append(f"Body image minimum not met: {counts['body']}.")
     if counts["unclassified"]:
         warnings.append("Classify image alt text as ZP_COVER or ZP_BODY; cover cannot count as body.")
-    caption_count = final_text.count("图片来源：")
-    if caption_count < counts["cover"] + counts["body"]:
-        errors.append("There are fewer source captions than classified images.")
+    errors.extend(image_source_errors(final_doc, evidence))
+    if re.search(r"(?:图片来源|图源)\s*[：:]", final_text):
+        errors.append("Visible image source lines must be moved to project image records.")
     for i, paragraph in enumerate(final_doc.paragraphs):
         if paragraph._p.xpath(".//w:drawing"):
-            if not has_source_caption(final_doc.paragraphs, i):
-                errors.append(f"Image paragraph {i + 1} is not followed by an adjacent source caption.")
+            if not has_descriptive_caption(final_doc.paragraphs, i):
+                errors.append(f"Image paragraph {i + 1} needs an adjacent plain description without source links or bold.")
 
     relationships = [rel.target_ref for rel in final_doc.part.rels.values()
                      if rel.is_external and rel.reltype.endswith("/hyperlink")]
