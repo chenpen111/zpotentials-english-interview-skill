@@ -98,6 +98,73 @@ def image_source_errors(doc, evidence):
             if shape._inline.docPr.get("id") not in sources]
 
 
+def packaging_errors(doc, evidence, rules):
+    errors = []
+    paragraphs = [p for p in doc.paragraphs if p.text.strip()]
+    hl_index = next((i for i, p in enumerate(paragraphs)
+                     if p.text.strip() == "Z Highlights"), None)
+    if hl_index is None:
+        errors.append("Z Highlights heading missing.")
+    before_hl = paragraphs[:hl_index] if hl_index is not None else paragraphs
+    if any(re.match(r"原访谈\s*[：:]", p.text.strip()) for p in before_hl):
+        errors.append("Remove the opening original-interview credit line; preserve actual greetings.")
+    all_paragraphs = doc.paragraphs
+    first_image = next((i for i, p in enumerate(all_paragraphs)
+                        if p._p.xpath(".//w:drawing")), None)
+    front = all_paragraphs[:first_image] if first_image is not None else []
+    authors = [(i, p.text.strip()) for i, p in enumerate(front)
+               if p.text.strip().startswith("作者：")]
+    front_summaries = [(i, p.text.strip()) for i, p in enumerate(front)
+                       if p.text.strip().startswith("摘要：")]
+    credit = evidence.get("interview_credit")
+    if (not isinstance(credit, str) or not credit.strip() or len(authors) != 1
+            or authors[0][1] != "作者：" + credit.strip()):
+        errors.append("Place the verified interview author/organization before the first image.")
+    if (len(front_summaries) != 1 or not authors
+            or authors[0][0] >= front_summaries[0][0]):
+        errors.append("The author line and summary must appear in that order before the first image.")
+    summaries = [p.text.strip() for p in before_hl if p.text.strip().startswith("摘要：")]
+    match = re.fullmatch(r"摘要：“(.+)”", summaries[0]) if len(summaries) == 1 else None
+    if not match:
+        errors.append("Summary requires 摘要： followed by a Chinese-double-quoted excerpt without author attribution.")
+    else:
+        content = match.group(1).strip()
+        if not content or len(content) > rules["summary_max_characters"]:
+            errors.append("Summary excerpt is empty or exceeds its configured limit.")
+    if hl_index is not None:
+        highlights = []
+        for paragraph in paragraphs[hl_index + 1:]:
+            runs = [run for run in paragraph.runs if run.text.strip()]
+            if (paragraph._p.xpath(".//w:drawing") or paragraph.style.name.startswith("Heading")
+                    or (runs and all(run.italic for run in runs))):
+                break
+            highlights.append(paragraph)
+        for paragraph in highlights:
+            text = paragraph.text.strip()
+            if (text.startswith(("“", '"', "「", ">"))
+                    or paragraph.style.name in {"Quote", "Intense Quote"}
+                    or re.search(r"https?://|\[\d+\]|[【〔]\d+[】〕]", text)
+                    or paragraph._p.xpath(".//w:hyperlink|.//w:footnoteReference|.//w:endnoteReference")):
+                errors.append("Highlights must be plain paragraphs without quote wrappers or source citations.")
+                break
+    source_index = next((i for i, p in enumerate(paragraphs)
+                         if p.text.strip().startswith("原视频：")), None)
+    original_title = evidence.get("original_title")
+    original_url = evidence.get("original_url")
+    if (source_index is None or not isinstance(original_title, str) or not original_title.strip()
+            or paragraphs[source_index].text.strip() != "原视频：" + original_title.strip()):
+        errors.append("Original video footer must begin with 原视频： and the verified complete English title.")
+    if (source_index is None or source_index + 1 >= len(paragraphs)
+            or not isinstance(original_url, str) or not re.fullmatch(r"https?://\S+", original_url)
+            or paragraphs[source_index + 1].text.strip() != original_url):
+        errors.append("Put only the verified original URL in the paragraph after the original video title.")
+    elif any(p._p.xpath(".//w:hyperlink|.//w:fldSimple")
+             or "HYPERLINK" in "".join(p._p.xpath(".//w:instrText/text()"))
+             for p in paragraphs[source_index:source_index + 2]):
+        errors.append("Original video title and URL must be plain text, not clickable hyperlinks.")
+    return errors
+
+
 def audit(paths, evidence, rules):
     errors, warnings, docs = [], [], {}
     if len(set(path.resolve() for path in paths.values())) != 3:
@@ -155,13 +222,7 @@ def audit(paths, evidence, rules):
     paragraphs = [p for p in final_doc.paragraphs if p.text.strip()]
     if not paragraphs or not paragraphs[0].text.startswith(rules["title_prefix"]):
         errors.append("Final title is missing the required prefix.")
-    hl_index = next((i for i, p in enumerate(paragraphs) if p.text.strip() == "Z Highlights"), None)
-    if hl_index is None:
-        errors.append("Z Highlights heading missing.")
-    before_hl = paragraphs[:hl_index] if hl_index is not None else []
-    summaries = [p.text for p in before_hl if p.text.startswith("\u201c") and p.text.endswith("\u201d")]
-    if not summaries or len(summaries[0]) > rules["summary_max_characters"]:
-        errors.append("Missing quoted summary or summary exceeds configured limit.")
+    errors.extend(packaging_errors(final_doc, evidence, rules))
 
     footer = render_footer(rules)
     if "{compiler}" in final_text:

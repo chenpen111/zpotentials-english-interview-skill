@@ -69,19 +69,28 @@ def run_tests():
         bilingual.save(paths["bilingual"])
         final = Document()
         final.add_paragraph(rules["title_prefix"] + "TEST FIXTURE", style="Title")
-        final.add_paragraph("“这是测试，不是生产稿件。”")
+        author = final.add_paragraph("作者：Test Interview Publisher")
+        summary = final.add_paragraph("摘要：“这是测试，不是生产稿件。”")
+        cover = final.add_paragraph().add_run().add_picture(str(image), width=Inches(1))
+        cover._inline.docPr.set("descr", "ZP_COVER")
+        final.add_paragraph("测试封面：用于演示排版的灰色矩形。")
         final.add_paragraph("Z Highlights", style="Heading 2")
-        final.add_paragraph("这是模拟内容。")
-        image_sources = []
-        for i in range(5):
+        highlight = final.add_paragraph("这是模拟内容。")
+        final.add_paragraph("这也是模拟内容。")
+        final.add_paragraph("第三条模拟亮点。")
+        final.add_paragraph().add_run("这是访谈背景介绍。test fixture only").italic = True
+        image_sources = [{"shape_id": cover._inline.docPr.get("id"),
+                          "source_url": "https://example.com/test-fixture"}]
+        for i in range(4):
             shape = final.add_paragraph().add_run().add_picture(str(image), width=Inches(1))
-            shape._inline.docPr.set("descr", "ZP_COVER" if i == 0 else "ZP_BODY")
+            shape._inline.docPr.set("descr", "ZP_BODY")
             final.add_paragraph("测试图片：用于演示排版的灰色矩形。")
             image_sources.append({"shape_id": shape._inline.docPr.get("id"),
                                   "source_url": "https://example.com/test-fixture"})
         source_file = root / "image-sources.json"
         source_file.write_text(json.dumps({"images": image_sources}), encoding="utf-8")
-        final.add_paragraph("原始视频：https://example.com/test-interview")
+        title = final.add_paragraph("原视频：Test Interview Original Title")
+        url = final.add_paragraph("https://example.com/test-interview")
         for part in footer.strip().split("\n\n"):
             final.add_paragraph(part)
         text_hash = module.hashlib.sha256(module.visible_text(final).encode("utf-8")).hexdigest()
@@ -93,6 +102,9 @@ def run_tests():
         self_checks.write_text("TEST FIXTURE ONLY: synthetic stage self-check records.", encoding="utf-8")
         evidence = {
             "alignment_verified": True, "content_review_verified": True,
+            "interview_credit": "Test Interview Publisher",
+            "original_title": "Test Interview Original Title",
+            "original_url": "https://example.com/test-interview",
             "image_sources_file": str(source_file),
             "experience_checks": {stage: {
                 "status": "passed", "record_file": str(self_checks),
@@ -111,6 +123,50 @@ def run_tests():
         }
         result = module.audit(paths, evidence, rules)
         assert result["passed"], result
+
+        summary_text = summary.text
+        for invalid in ["“缺少摘要标签。”", "摘要：“内容。”————Test Speaker",
+                        "摘要：内容。", "摘要：内容。————Test Compiler",
+                        "摘要：“”", "摘要：“" + "长" * 81 + "”"]:
+            summary.text = invalid
+            assert module.packaging_errors(final, evidence, rules)
+        summary.text = summary_text
+        for invalid in ["“亮点无需引号。”", "> 不用引用块", "内容[1]", "内容https://example.com"]:
+            highlight.text = invalid
+            assert module.packaging_errors(final, evidence, rules)
+        highlight.text = "这是模拟内容。"
+        highlight.style = "Quote"
+        assert module.packaging_errors(final, evidence, rules)
+        highlight.style = "Normal"
+        opening_credit = summary.insert_paragraph_before("原访谈：TEST FIXTURE")
+        assert module.packaging_errors(final, evidence, rules)
+        opening_credit._p.getparent().remove(opening_credit._p)
+        author.text = "作者：Test Guest Not Publisher"
+        assert module.packaging_errors(final, evidence, rules)
+        author.text = "作者：" + evidence["interview_credit"]
+        summary._p.addnext(author._p)
+        assert module.packaging_errors(final, evidence, rules)
+        summary._p.addprevious(author._p)
+        cover_paragraph = cover._inline.xpath("ancestor::w:p")[0]
+        cover_paragraph.addnext(summary._p)
+        assert module.packaging_errors(final, evidence, rules)
+        cover_paragraph.addprevious(summary._p)
+        title.text = "原视频：Incorrect Title"
+        assert module.packaging_errors(final, evidence, rules)
+        title.text = "原视频：" + evidence["original_title"]
+        for invalid in ["原始链接：" + evidence["original_url"],
+                        "[观看视频](" + evidence["original_url"] + ")",
+                        "https://example.com/wrong-video"]:
+            url.text = invalid
+            assert module.packaging_errors(final, evidence, rules)
+        url.text = evidence["original_url"]
+        from docx.oxml import OxmlElement
+        field = OxmlElement("w:fldSimple")
+        url._p.append(field)
+        assert module.packaging_errors(final, evidence, rules)
+        url._p.remove(field)
+        assert not module.packaging_errors(final, evidence, rules), module.packaging_errors(final, evidence, rules)
+        final.save(paths["final"])
 
         missing_sources = dict(evidence)
         missing_sources.pop("image_sources_file")
@@ -168,7 +224,7 @@ def run_tests():
         aliases = dict(paths)
         aliases["bilingual"] = paths["english"]
         assert any("distinct" in msg for msg in module.audit(aliases, evidence, rules)["errors"])
-        print("PASS: descriptive captions; separate per-image sources; missing/duplicate/invalid sources; visible source rejection; valid structure; stage checks; review state; stale text/render; timestamps; missing footer/image; broken pairs; distinct files.")
+        print("PASS: verified interview credit and quoted summary before first image; plain Highlights; original-video title then plain URL; captions and image sources; stage checks; review state; stale text/render; timestamps; footer/images; bilingual pairs; distinct files.")
         print("Synthetic tests only. No real Doubao access, rendering or article revision performed.")
 
 

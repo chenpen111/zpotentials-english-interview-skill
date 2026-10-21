@@ -12,6 +12,8 @@
 
 中文：深度SOP完整结构、正文人物名字加冒号、没有时间戳、至少四图加封面、图下仅图片描述、固定署名与声明。图注字体字号颜色同正文、不加粗，不显示图片来源及链接。开头和结尾不缺失，批注不显示为观众正文。
 
+开头按标题、`作者：已核对的访谈作者/制作机构`、`摘要：“内容。”`、第一张图片排序；作者和摘要都在首图前，摘要末尾不署名。不要把嘉宾或摘要发言人误作访谈作者，不另列“原访谈：……”行。Z Highlights不套外层引号、引用块或来源引用。正式欢迎和告别照常保留。文末先写`原视频：完整英文原题`，下一非空段仅写原始URL，普通文字、不设超链接、不加其他标签。英文稿入口仍放编辑评论。
+
 图片出处另存项目`qa/image-sources.json`，在验收证据中用`image_sources_file`指向实际文件。格式为`{"images": [{"shape_id": "实际图片docPr的id", "source_url": "具体原始出处链接"}]}`；覆盖封面和每张正文图。可补充本地图片路径及描述，便于回查；辅助资料不作为第四份交付稿。
 
 ## 豆包审查
@@ -37,6 +39,9 @@
   "timestamps_available": true,
   "alignment_verified": true,
   "content_review_verified": true,
+  "interview_credit": "已核对的访谈作者、节目或制作/发布机构",
+  "original_title": "已核对的视频或播客完整英文标题",
+  "original_url": "已核对的原视频/节目URL",
   "image_sources_file": "qa/image-sources.json的实际绝对路径",
   "experience_checks": {
     "transcript": {"status": "passed", "checked_ids": ["实际读取的条目ID"], "record_file": "qa/experience-checks.md的绝对路径"},
